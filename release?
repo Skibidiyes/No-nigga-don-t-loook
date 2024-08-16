@@ -1,261 +1,131 @@
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Camera = game.Workspace.CurrentCamera
 local RunService = game:GetService("RunService")
-local SoundService = game:GetService("SoundService")
-local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local CamlockState = false
+local Prediction = 0.165771
 
-local function createGui()
-    local existingGui = LocalPlayer.PlayerGui:FindFirstChild("TapBoundScreenGui")
-    if existingGui then
-        existingGui:Destroy()
-    end
+function FindNearestEnemy()
+    local ClosestDistance, ClosestPlayer = math.huge, nil
+    local CenterPosition = Vector2.new(game:GetService("GuiService"):GetScreenResolution().X / 2, game:GetService("GuiService"):GetScreenResolution().Y / 2)
 
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "TapBoundScreenGui"
-    screenGui.Parent = LocalPlayer.PlayerGui
-
-    local button = Instance.new("TextButton")
-    button.Name = "Go target"
-    button.Size = UDim2.new(0, 60, 0, 60)
-    button.Position = UDim2.new(0.15, 0, 0.25, 0)
-    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 14
-    button.Text = "ON IT😡"
-    button.Font = Enum.Font.SourceSans
-    button.BorderSizePixel = 0
-    button.BackgroundTransparency = 0
-    button.Parent = screenGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = button
-
-    local hitSound = Instance.new("Sound")
-    hitSound.SoundId = "rbxassetid://18595601181"
-    hitSound.Volume = 1
-    hitSound.Parent = screenGui
-
-    local function createNotificationFrame(name)
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 250, 0, 60)
-        frame.Position = UDim2.new(1, 50, 1, 50)
-        frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        frame.BorderSizePixel = 0
-        frame.Visible = false
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -10, 1, -10)
-        label.Position = UDim2.new(0, 5, 0, 5)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.TextSize = 16
-        label.TextWrapped = true
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.TextYAlignment = Enum.TextYAlignment.Center
-        label.Font = Enum.Font.SourceSans
-        label.Parent = frame
-
-        local underline = Instance.new("Frame")
-        underline.Size = UDim2.new(1, 0, 0, 2)
-        underline.Position = UDim2.new(0, 0, 0, 0)
-        underline.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        underline.BorderSizePixel = 0
-        underline.Parent = frame
-
-        local smallLabel = Instance.new("TextLabel")
-        smallLabel.Size = UDim2.new(0, 100, 0, 20)
-        smallLabel.Position = UDim2.new(0, 5, 0, 5)
-        smallLabel.BackgroundTransparency = 1
-        smallLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        smallLabel.TextSize = 12
-        smallLabel.Text = "LightHp.cc v4.2"
-        smallLabel.Font = Enum.Font.SourceSans
-        smallLabel.TextXAlignment = Enum.TextXAlignment.Left
-        smallLabel.TextYAlignment = Enum.TextYAlignment.Center
-        smallLabel.Parent = frame
-
-        frame.Name = name
-        frame.Parent = screenGui
-        return frame, label
-    end
-
-    local lockNotification, lockNotificationLabel = createNotificationFrame("LockNotification")
-    local unlockNotification, unlockNotificationLabel = createNotificationFrame("UnlockNotification")
-    local targetNotification, targetNotificationLabel = createNotificationFrame("TargetNotification")
-    local koNotification, koNotificationLabel = createNotificationFrame("KONotification")
-
-    local isLocked = false
-    local lockedPlayer = nil
-    local predictionFactor = 0.2
-    local pingToPrediction = {
-        [50] = 0.1433, [55] = 0.1412, [60] = 0.1389, [65] = 0.1367,
-        [70] = 0.1346, [75] = 0.1324, [80] = 0.1303, [85] = 0.1282,
-        [90] = 0.1261, [95] = 0.1240, [100] = 0.1219, [105] = 0.1198,
-        [110] = 0.1177, [115] = 0.1157, [120] = 0.1136, [125] = 0.1116,
-        [130] = 0.1095, [135] = 0.1075, [140] = 0.1055, [145] = 0.1035,
-        [150] = 0.1015, [155] = 0.0995, [160] = 0.0975, [165] = 0.0956,
-        [170] = 0.0936, [175] = 0.0917, [180] = 0.0897, [185] = 0.0878,
-        [190] = 0.0859, [195] = 0.0840, [200] = 0.0821, [205] = 0.0802,
-        [210] = 0.0783, [215] = 0.0765, [220] = 0.0746, [225] = 0.0728,
-        [230] = 0.0710, [235] = 0.0692, [240] = 0.0674, [245] = 0.0656,
-        [250] = 0.0638, [255] = 0.0620, [260] = 0.0603, [265] = 0.0585,
-        [270] = 0.0568, [275] = 0.0551, [280] = 0.0534, [285] = 0.0517,
-        [290] = 0.0500
-    }
-
-    local currentBoxHighlight = nil  -- Variable to store the current ESP box
-
-    local function getPing()
-        -- Mocking a ping value; replace with actual method to get the player's ping
-        return 50 -- Example fixed ping value, replace with actual ping retrieval logic
-    end
-
-    local function getPredictionFactor()
-        local ping = getPing()
-        local closestPing = math.huge
-        local closestFactor = predictionFactor
-
-        for pingValue, factor in pairs(pingToPrediction) do
-            if math.abs(ping - pingValue) < math.abs(ping - closestPing) then
-                closestPing = pingValue
-                closestFactor = factor
-            end
-        end
-
-        return closestFactor
-    end
-
-    local function showNotification(notificationFrame, label, messageText)
-        if lockNotification.Visible then
-            lockNotification.Visible = false
-        end
-        if unlockNotification.Visible then
-            unlockNotification.Visible = false
-        end
-        if targetNotification.Visible then
-            targetNotification.Visible = false
-        end
-        if koNotification.Visible then
-            koNotification.Visible = false
-        end
-
-        notificationFrame.Visible = true
-        notificationFrame.Position = UDim2.new(1, 50, 1, 50)
-        label.Text = messageText
-        hitSound:Play()
-
-        notificationFrame:TweenPosition(UDim2.new(1, -260, 1, -70), "Out", "Quad", 0.5, true, function()
-            wait(2)
-            notificationFrame:TweenPosition(UDim2.new(1, 50, 1, 50), "In", "Quad", 0.5, true, function()
-                notificationFrame.Visible = false
-            end)
-        end)
-    end
-
-    local function getPlayerInView()
-        local cameraPosition = Camera.CFrame.Position
-        local playersInView = {}
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local character = player.Character
-                local rootPart = character.HumanoidRootPart
-                local characterPosition = rootPart.Position
-                local screenPosition, onScreen = Camera:WorldToViewportPoint(characterPosition)
-
-                if onScreen then
-                    local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)).Magnitude
-                    table.insert(playersInView, {player = player, distance = distance})
-                end
-            end
-        end
-
-        if #playersInView > 0 then
-            table.sort(playersInView, function(a, b) return a.distance < b.distance end)
-            return playersInView[1].player
-        end
-
-        return nil
-    end
-
-    local function updateCamera()
-        if isLocked and lockedPlayer and lockedPlayer.Character and lockedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPosition = lockedPlayer.Character.HumanoidRootPart.Position
-            local cameraPosition = Camera.CFrame.Position
-
-            local velocity = lockedPlayer.Character:FindFirstChildOfClass("Humanoid") and lockedPlayer.Character:FindFirstChildOfClass("Humanoid").RootPart.Velocity or Vector3.new()
-            predictionFactor = getPredictionFactor()  -- Update prediction factor based on ping
-            local predictedPosition = targetPosition + velocity * predictionFactor
-
-            local ray = Ray.new(cameraPosition, predictedPosition - cameraPosition)
-            local hitPart, hitPoint = workspace:FindPartOnRay(ray, LocalPlayer.Character)
-
-            if hitPart then
-                predictedPosition = cameraPosition + (predictedPosition - cameraPosition).Unit * (hitPoint - cameraPosition).Magnitude
-            end
-
-            Camera.CFrame = CFrame.new(cameraPosition, predictedPosition)
-        end
-    end
-
-    button.MouseButton1Click:Connect(function()
-        isLocked = not isLocked
-        if isLocked then
-            button.Text = " finally"
-            lockedPlayer = getPlayerInView()
-            if lockedPlayer then
-                showNotification(lockNotification, lockNotificationLabel, "Camlock is already used😝: " .. lockedPlayer.DisplayName)
-                -- Remove the existing ESP box if there is one
-                if currentBoxHighlight then
-                    currentBoxHighlight:Destroy()
-                end
-
-                -- Create a new ESP box for the new target
-                currentBoxHighlight = Instance.new("BoxHandleAdornment")
-                currentBoxHighlight.Adornee = lockedPlayer.Character.HumanoidRootPart
-                currentBoxHighlight.Size = Vector3.new(2, 2, 2)  -- Adjust size if needed
-                currentBoxHighlight.Color3 = Color3.fromRGB(0, 0, 255)
-                currentBoxHighlight.Parent = lockedPlayer.Character
-            end
-        else
-            button.Text = "On it😡"
-            -- Remove the ESP box when the camlock is deactivated
-            if currentBoxHighlight then
-                currentBoxHighlight:Destroy()
-                currentBoxHighlight = nil
-            end
-            lockedPlayer = nil
-            showNotification(unlockNotification, unlockNotificationLabel, "Camlock Deactivated")
-        end
-    end)
-
-    RunService.RenderStepped:Connect(function()
-        if isLocked then
-            updateCamera()
-
-            -- Check if the target player is KO
-            if lockedPlayer and lockedPlayer.Character and lockedPlayer.Character:FindFirstChild("Humanoid") then
-                local humanoid = lockedPlayer.Character.Humanoid
-                if humanoid.Health <= 1 then
-                    showNotification(koNotification, koNotificationLabel, "The gay guy is dead :)")
-                    button.Text = "Go On it😡"
-                    -- Remove the ESP box when the target is KO
-                    if currentBoxHighlight then
-                        currentBoxHighlight:Destroy()
-                        currentBoxHighlight = nil
+    for _, Player in ipairs(game:GetService("Players"):GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 0 then
+                local Position, IsVisibleOnViewport = game:GetService("Workspace").CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
+                if IsVisibleOnViewport then
+                    local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
+                    if Distance < ClosestDistance then
+                        ClosestPlayer = Character
+                        ClosestDistance = Distance
                     end
-                    isLocked = false
-                    lockedPlayer = nil
                 end
             end
         end
-    end)
+    end
+
+    if ClosestPlayer and ClosestPlayer:FindFirstChild("Humanoid") and ClosestPlayer.Humanoid.Health <= 1 then
+        ClosestPlayer = nil
+    end
+
+    return ClosestPlayer and ClosestPlayer.HumanoidRootPart
 end
 
-LocalPlayer.CharacterAdded:Connect(createGui)
+local enemy = nil
 
-if LocalPlayer.Character then
-    createGui()
-end
+RunService.Heartbeat:Connect(function()
+    if CamlockState == true then
+        if enemy then
+            local camera = workspace.CurrentCamera
+            camera.CFrame = CFrame.new(camera.CFrame.p, enemy.Position + enemy.Velocity * Prediction)
+        end
+    end
+end)
+
+local Lock = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local UICorner = Instance.new("UICorner")
+local TextButton = Instance.new("TextButton")
+local UICorner_2 = Instance.new("UICorner")
+local UIStroke = Instance.new("UIStroke")
+local Gradient = Instance.new("UIGradient")
+
+-- Properties:
+Lock.Name = "Lock"
+Lock.Parent = game.CoreGui
+Lock.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+Frame.Parent = Lock
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.5, -50, 0.5, -50)
+Frame.Size = UDim2.new(0, 120, 0, 120)
+Frame.Active = true
+Frame.Draggable = true
+
+UICorner.CornerRadius = UDim.new(0.15, 0)
+UICorner.Parent = Frame
+
+TextButton.Parent = Frame
+TextButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TextButton.BorderSizePixel = 0
+TextButton.Position = UDim2.new(0.1, 0, 0.1, 0)
+TextButton.Size = UDim2.new(0.8, 0, 0.8, 0)
+TextButton.Font = Enum.Font.GothamBold
+TextButton.Text = "Lock OFF"
+TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.TextScaled = true
+TextButton.TextWrapped = true
+
+UICorner_2.CornerRadius = UDim.new(0.15, 0)
+UICorner_2.Parent = TextButton
+
+UIStroke.Parent = Frame
+UIStroke.Color = Color3.fromRGB(255, 255, 255)
+UIStroke.Thickness = 2
+
+Gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
+    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(255, 255, 0)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 255, 0))
+})
+Gradient.Rotation = 45
+Gradient.Parent = TextButton
+
+TextButton.MouseButton1Click:Connect(function()
+    CamlockState = not CamlockState
+    if CamlockState then
+        enemy = FindNearestEnemy()
+        if enemy then
+            local playerName = enemy.Parent:FindFirstChild("Humanoid") and enemy.Parent.Name
+            if playerName then
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "SHIT HES BLACK";
+                    Text = "Target: " .. playerName;
+                    Duration = 3;
+                })
+            end
+        end
+    else
+        enemy = nil
+    end
+    TextButton.Text = CamlockState and "Lock ON" or "Lock OFF"
+end)
+
+local rainbowColors = {
+    Color3.fromRGB(255, 0, 0),    
+    Color3.fromRGB(255, 165, 0),  
+    Color3.fromRGB(255, 255, 0),  
+    Color3.fromRGB(0, 255, 0),    
+    Color3.fromRGB(0, 0, 255),    
+    Color3.fromRGB(75, 0, 130),   
+    Color3.fromRGB(238, 130, 238) 
+}
+
+local rainbowCycleSpeed = 0.09
+
+RunService.RenderStepped:Connect(function()
+    local index = math.floor(tick() / rainbowCycleSpeed) % #rainbowColors + 1
+    Frame.BackgroundColor3 = rainbowColors[index]
+end)
