@@ -3,21 +3,27 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local CamlockState = false
-local Prediction = 0.165771
+local Prediction =  0.1768521
+
+local Locked = true
+getgenv().Key = "q"
 
 function FindNearestEnemy()
     local ClosestDistance, ClosestPlayer = math.huge, nil
-    local CenterPosition = Vector2.new(game:GetService("GuiService"):GetScreenResolution().X / 2, game:GetService("GuiService"):GetScreenResolution().Y / 2)
+    local CenterPosition = Vector2.new(
+        game:GetService("GuiService"):GetScreenResolution().X / 2,
+        game:GetService("GuiService"):GetScreenResolution().Y / 2
+    )
 
     for _, Player in ipairs(game:GetService("Players"):GetPlayers()) do
         if Player ~= LocalPlayer then
             local Character = Player.Character
-            if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 0 then
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 1 then
                 local Position, IsVisibleOnViewport = game:GetService("Workspace").CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
                 if IsVisibleOnViewport then
                     local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
                     if Distance < ClosestDistance then
-                        ClosestPlayer = Character
+                        ClosestPlayer = Character.HumanoidRootPart
                         ClosestDistance = Distance
                     end
                 end
@@ -25,107 +31,98 @@ function FindNearestEnemy()
         end
     end
 
-    if ClosestPlayer and ClosestPlayer:FindFirstChild("Humanoid") and ClosestPlayer.Humanoid.Health <= 1 then
-        ClosestPlayer = nil
-    end
-
-    return ClosestPlayer and ClosestPlayer.HumanoidRootPart
+    return ClosestPlayer
 end
 
 local enemy = nil
-
 RunService.Heartbeat:Connect(function()
-    if CamlockState == true then
-        if enemy then
-            local camera = workspace.CurrentCamera
-            camera.CFrame = CFrame.new(camera.CFrame.p, enemy.Position + enemy.Velocity * Prediction)
+    if CamlockState and enemy then
+        local camera = workspace.CurrentCamera
+        camera.CFrame = CFrame.new(camera.CFrame.p, enemy.Position + enemy.Velocity * Prediction)
+    end
+end)
+
+Mouse.KeyDown:Connect(function(k)
+    if k == getgenv().Key then
+        Locked = not Locked
+        if Locked then
+            enemy = FindNearestEnemy()
+            CamlockState = true
+        else
+            enemy = nil
+            CamlockState = false
         end
     end
 end)
 
-local Lock = Instance.new("ScreenGui")
+local CamlockGui = Instance.new("ScreenGui")
 local Frame = Instance.new("Frame")
 local UICorner = Instance.new("UICorner")
 local TextButton = Instance.new("TextButton")
-local UICorner_2 = Instance.new("UICorner")
 local UIStroke = Instance.new("UIStroke")
-local Gradient = Instance.new("UIGradient")
 
--- Properties:
-Lock.Name = "Lock"
-Lock.Parent = game.CoreGui
-Lock.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+CamlockGui.Name = "CamlockGui"
+CamlockGui.Parent = game.CoreGui
+CamlockGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-Frame.Parent = Lock
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Parent = CamlockGui
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Frame.BorderSizePixel = 0
-Frame.Position = UDim2.new(0.5, -50, 0.5, -50)
-Frame.Size = UDim2.new(0, 120, 0, 120)
+Frame.Position = UDim2.new(0.5, -195 / 2, 0.5, -65 / 2)
+Frame.Size = UDim2.new(0, 195, 0, 65)
 Frame.Active = true
 Frame.Draggable = true
 
-UICorner.CornerRadius = UDim.new(0.15, 0)
+local Gradient = Instance.new("UIGradient")
+Gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 50, 50))
+})
+Gradient.Parent = Frame
+
 UICorner.Parent = Frame
+UICorner.CornerRadius = UDim.new(0, 8)
 
 TextButton.Parent = Frame
-TextButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TextButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+TextButton.BackgroundTransparency = 0.5
 TextButton.BorderSizePixel = 0
-TextButton.Position = UDim2.new(0.1, 0, 0.1, 0)
-TextButton.Size = UDim2.new(0.8, 0, 0.8, 0)
-TextButton.Font = Enum.Font.GothamBold
-TextButton.Text = "Lock OFF"
-TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.Position = UDim2.new(0.079, 0, 0.185, 0)
+TextButton.Size = UDim2.new(0, 170, 0, 44)
+TextButton.Font = Enum.Font.SourceSansSemibold
+TextButton.Text = "Camlock"
+TextButton.TextColor3 = Color3.fromRGB(255, 0, 0)
 TextButton.TextScaled = true
+TextButton.TextSize = 22 -- Increased text size
 TextButton.TextWrapped = true
+TextButton.TextXAlignment = Enum.TextXAlignment.Center
+TextButton.TextYAlignment = Enum.TextYAlignment.Center
 
-UICorner_2.CornerRadius = UDim.new(0.15, 0)
-UICorner_2.Parent = TextButton
-
-UIStroke.Parent = Frame
-UIStroke.Color = Color3.fromRGB(255, 255, 255)
+UIStroke.Parent = TextButton
+UIStroke.Color = Color3.fromRGB(0, 0, 0)
 UIStroke.Thickness = 2
-
-Gradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
-    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(255, 255, 0)),
-    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 255, 0))
-})
-Gradient.Rotation = 45
-Gradient.Parent = TextButton
+UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 TextButton.MouseButton1Click:Connect(function()
     CamlockState = not CamlockState
     if CamlockState then
         enemy = FindNearestEnemy()
         if enemy then
-            local playerName = enemy.Parent:FindFirstChild("Humanoid") and enemy.Parent.Name
-            if playerName then
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "SHIT HES BLACK";
-                    Text = "Target: " .. playerName;
-                    Duration = 3;
-                })
-            end
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "dang he's white",
+                Text = "Target: " .. (enemy.Parent and enemy.Parent:FindFirstChildOfClass("Humanoid") and enemy.Parent:FindFirstChildOfClass("Humanoid").DisplayName or "Unknown")
+            })
         end
     else
         enemy = nil
     end
-    TextButton.Text = CamlockState and "Lock ON" or "Lock OFF"
 end)
 
-local rainbowColors = {
-    Color3.fromRGB(255, 0, 0),    
-    Color3.fromRGB(255, 165, 0),  
-    Color3.fromRGB(255, 255, 0),  
-    Color3.fromRGB(0, 255, 0),    
-    Color3.fromRGB(0, 0, 255),    
-    Color3.fromRGB(75, 0, 130),   
-    Color3.fromRGB(238, 130, 238) 
-}
+local function RedText()
+    while true do
+        TextButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+        wait(1)
+    end
+end
 
-local rainbowCycleSpeed = 0.09
-
-RunService.RenderStepped:Connect(function()
-    local index = math.floor(tick() / rainbowCycleSpeed) % #rainbowColors + 1
-    Frame.BackgroundColor3 = rainbowColors[index]
-end)
+spawn(RedText)
